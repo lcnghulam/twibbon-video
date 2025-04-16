@@ -56,7 +56,7 @@ body {
 .twibbon-section canvas {
   @apply border-2 border-dashed rounded-lg mx-auto my-4 touch-none;
   width: 80%;
-  max-width: 300px;
+  max-width: 400px;
   height: auto;
   display: block;
 }
@@ -94,7 +94,7 @@ body {
 }
 
 .canvas-controls {
-  @apply text-sm text-left max-w-xs mx-auto space-y-2;
+  @apply text-sm text-left max-w-[400px] mx-auto space-y-2;
 }
 
 .canvas-controls .canvas-info {

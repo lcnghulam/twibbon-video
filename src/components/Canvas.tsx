@@ -28,8 +28,6 @@ export default function Canvas() {
   const canvasVideoRef = useRef<HTMLCanvasElement>(null);
   const [showPreviewVideo, setShowPreviewVideo] = useState(false);
 
-  const canvasSize = 300;
-
   useEffect(() => {
     const twibbon = new Image();
     twibbon.src = "/twibbon.png";
@@ -41,8 +39,11 @@ export default function Canvas() {
     if (imageObj) drawCanvas();
   }, [imageObj, pos, scale, rotation]);
 
+  const canvasSize = 400;
+
   const drawInitialCanvas = () => {
     const canvas = canvasRef.current;
+
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -214,30 +215,35 @@ export default function Canvas() {
     if (!showPreviewVideo) return;
 
     const canvas = canvasVideoRef.current;
-    const ctx = canvas?.getContext("2d");
+    const video = videoRef.current;
+    const ctx = canvas?.getContext("2d", { willReadFrequently: true });
+    const canvasSize = 400;
 
-    if (!canvas) return console.log("❌ Canvas null");
-    if (!ctx) return console.log("❌ Ctx null");
-    if (!imageObj) return console.log("❌ imageObj null");
+    if (!canvas || !video || !ctx || !imageObj) {
+      console.log("❌ Missing elements");
+      return;
+    }
 
     canvas.width = canvasSize;
     canvas.height = canvasSize;
 
-    const drawTransformedImage = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const chromaStart = 11;
+    const chromaEnd = 21;
+    let animationFrameId: number;
 
-      // Translasi ke tengah canvas
+    const drawTransformedImage = () => {
+      if (!imageObj) {
+        console.error("❌ Image object null!!!");
+        return;
+      }
+      // Render transformasi gambar
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.save();
       ctx.translate(pos.x + canvasSize / 2, pos.y + canvasSize / 2);
-
-      // Rotasi
       ctx.rotate((rotation * Math.PI) / 180);
-
-      // Resize (scale)
       const scaledWidth = imageObj.width * scale;
       const scaledHeight = imageObj.height * scale;
-
-      // Gambar gambar yang sudah ditransformasi
       ctx.drawImage(
         imageObj,
         -scaledWidth / 2,
@@ -245,65 +251,67 @@ export default function Canvas() {
         scaledWidth,
         scaledHeight
       );
-
       ctx.restore();
     };
 
-    if (imageObj.complete) {
+    const dechromaFix = (
+      imageData: ImageData,
+      rRange: [number, number],
+      gRange: [number, number],
+      bRange: [number, number]
+    ): ImageData => {
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        if (
+          r >= rRange[0] &&
+          r <= rRange[1] &&
+          g >= gRange[0] &&
+          g <= gRange[1] &&
+          b >= bRange[0] &&
+          b <= bRange[1]
+        ) {
+          data[i + 3] = 0;
+        }
+      }
+      return imageData;
+    };
+
+    const renderLoop = () => {
       drawTransformedImage();
-    } else {
-      imageObj.onload = drawTransformedImage;
-    }
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // const video = videoRef.current;
-    // const canvas = canvasVideoRef.current;
+      if (video.currentTime >= chromaStart && video.currentTime <= chromaEnd) {
+        const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const processed = dechromaFix(frame, [10, 50], [200, 255], [0, 50]);
+        ctx.putImageData(processed, 0, 0);
+      }
 
-    // // Get Img
-    // const image = imageObj;
+      animationFrameId = requestAnimationFrame(renderLoop);
+    };
 
-    // if (!video || !image) return;
+    // Trigger when video Running
+    const waitForFirstFrame = () => {
+      if (video.readyState >= 2) {
+        video.play();
+        renderLoop();
+      } else {
+        video.addEventListener("loadeddata", () => {
+          video.play();
+          renderLoop();
+        });
+      }
+    };
 
-    // const ctx = canvas.getContext("2d");
-    // if (!ctx) return;
+    waitForFirstFrame();
 
-    // canvas.width = video.videoWidth;
-    // canvas.height = video.videoHeight;
-
-    // const chromaStart = 11;
-    // const chromaEnd = 21;
-
-    // setShowPreviewVideo(true);
-
-    // video.currentTime = 0;
-    // video.play();
-
-    // const draw = () => {
-    //   if (video.paused || video.ended) return;
-
-    //   // Ambil frame dari video
-    //   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    //   // Ambil frame sebagai ImageData
-    //   const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-    //   // Jika waktu di antara 11s–21s → apply dechroma
-    //   if (video.currentTime >= chromaStart && video.currentTime <= chromaEnd) {
-    //     const result = dechroma(frame, [25, 32], [245, 255], [2, 5]);
-
-    //     // Gambar background foto yang diupload
-    //     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-    //     // Taruh hasil dechroma (frame transparan) di atasnya
-    //     ctx.putImageData(frame, 0, 0);
-    //   }
-
-    //   // Loop untuk frame berikutnya
-    //   requestAnimationFrame(draw);
-    // };
-
-    // // Mulai render saat video siap
-    // video.addEventListener("play", draw);
-  }, [showPreviewVideo, imageObj, pos, scale, rotation, canvasSize]);
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      video.pause();
+    };
+  }, [showPreviewVideo, imageObj, pos, scale, rotation]);
 
   useEffect(() => {
     if (showPreviewVideo) {
@@ -492,7 +500,13 @@ export default function Canvas() {
       {showPreviewVideo && (
         <>
           <div className="twibbon-video mb-3">
-            <video ref={videoRef} src="/twibbon.mp4" controls width={400} />
+            <video
+              ref={videoRef}
+              src="/twibbon.mp4"
+              controls
+              width={400}
+              height={100}
+            />
             <canvas ref={canvasVideoRef} width={400} />
             <button
               onClick={handleDownload}
