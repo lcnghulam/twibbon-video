@@ -227,17 +227,18 @@ export default function Canvas() {
     canvas.width = canvasSize;
     canvas.height = canvasSize;
 
-    const chromaStart = 11;
-    const chromaEnd = 21;
+    const chromaStart = 11; // chroma key start's time
+    const chromaEnd = 21; // chroma key end's time
     let animationFrameId: number;
 
+    // BG Image Render
     const drawTransformedImage = () => {
       if (!imageObj) {
         console.error("❌ Image object null!!!");
         return;
       }
-      // Render transformasi gambar
 
+      ctx.globalCompositeOperation = "source-over"; // Gambar background
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.save();
       ctx.translate(pos.x + canvasSize / 2, pos.y + canvasSize / 2);
@@ -254,6 +255,7 @@ export default function Canvas() {
       ctx.restore();
     };
 
+    // Chroma Key Function
     const dechromaFix = (
       imageData: ImageData,
       rRange: [number, number],
@@ -273,26 +275,33 @@ export default function Canvas() {
           b >= bRange[0] &&
           b <= bRange[1]
         ) {
-          data[i + 3] = 0;
+          data[i + 3] = 0; // Transparent Pixel
         }
       }
       return imageData;
     };
 
+    // Loop rendering
     const renderLoop = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // BG Image starts to render
       drawTransformedImage();
+
+      // Render twibbon video above Image
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+      // Apply Chroma Key
       if (video.currentTime >= chromaStart && video.currentTime <= chromaEnd) {
         const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const processed = dechromaFix(frame, [10, 50], [200, 255], [0, 50]);
+        const processed = dechromaFix(frame, [10, 50], [200, 255], [0, 50]); // Sesuaikan rentang hijau jika perlu
         ctx.putImageData(processed, 0, 0);
       }
 
       animationFrameId = requestAnimationFrame(renderLoop);
     };
 
-    // Trigger when video Running
+    // Start Renderring
     const waitForFirstFrame = () => {
       if (video.readyState >= 2) {
         video.play();
