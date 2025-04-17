@@ -34,6 +34,7 @@ function VideoChromaKey({
       // Update uniform videoTime dengan currentTime dari elemen video
       shaderRef.current.uniforms.videoTime.value =
         videoTexture.image.currentTime || 0;
+      console.log("Video time: ", videoTexture.image.currentTime);
     }
   });
 
@@ -169,7 +170,6 @@ export default function Canvas() {
   const videoElemRef = useRef<HTMLVideoElement | null>(null);
   // Untuk mendapatkan akses ke elemen canvas yang dibuat oleh R3F
   const r3fCanvasRef = useRef<HTMLCanvasElement>(null);
-  const playingRef = useRef(false);
   const [playing, setPlaying] = useState(false);
   const [downloaded, setDownload] = useState(false);
 
@@ -200,7 +200,6 @@ export default function Canvas() {
       videoElemRef.current = videoElem;
       videoElem.src = "/twibbon.mp4";
       videoElem.crossOrigin = "anonymous";
-      videoElem.controls = true;
       videoElem.muted = false;
       videoElem.playsInline = true;
       videoElem.loop = false;
@@ -380,12 +379,6 @@ export default function Canvas() {
     setDragging(false);
   };
 
-  // Aktifkan preview video
-  const handlePreview = () => {
-    setShowPreviewVideo(true);
-    setPlaying(false);
-  };
-
   // Reset semua state dan canvas
   const handleReset = () => {
     setImageObj(null);
@@ -398,23 +391,22 @@ export default function Canvas() {
     scrollToRef(canvasRef, -50);
     setShowPreviewVideo(false);
     setVideoTexture(null);
-    if (videoElemRef.current) {
-      videoElemRef.current.pause(); // Hentikan video
-      videoElemRef.current.src = ""; // Kosongkan sumber video
-      videoElemRef.current = null; // Hapus referensi
-    }
-    setPlaying(false);
   };
 
   const handleRotateRight = () => {
     setRotation((prev) => prev + 90);
   };
 
+  // Aktifkan preview video
+  const handlePreview = () => {
+    setShowPreviewVideo(true);
+  };
+
   // Fungsi play video: memanggil metode play pada elemen video
   const handlePlayVideo = () => {
     if (videoElemRef.current) {
-      videoElemRef.current.play().catch((err) => {
-        console.error("Gagal memulai video:", err);
+      videoElemRef.current.play().then(() => {
+        setPlaying(true);
       });
     }
   };
@@ -425,25 +417,6 @@ export default function Canvas() {
       setPlaying(false);
     }
   };
-
-  // useEffect(() => {
-  //   if (videoElemRef.current) {
-  //     const video = videoElemRef.current;
-
-  //     const handleTimeUpdate = () => {
-  //       if (video.currentTime > 26) {
-  //         setPlaying(false);
-  //         video.pause(); // Menghentikan video jika diperlukan
-  //       }
-  //     };
-
-  //     video.addEventListener("timeupdate", handleTimeUpdate);
-
-  //     return () => {
-  //       video.removeEventListener("timeupdate", handleTimeUpdate);
-  //     };
-  //   }
-  // });
 
   // Fungsi untuk download video dari canvas R3F dengan audio, full durasi, & kualitas HD.
   const handleDownload = () => {
@@ -612,7 +585,6 @@ export default function Canvas() {
       {showPreviewVideo && (
         <div className="twibbon-video">
           <R3FCanvas
-            style={{ maxWidth: "400px", maxHeight: "400px" }}
             // Menggunakan kamera ortografi agar ruang koordinat 400×400 dengan pusat di (0,0)
             orthographic
             camera={{

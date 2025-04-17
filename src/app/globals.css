@@ -58,7 +58,7 @@ body {
   font-size: 14px;
 }
 
-.twibbon-section canvas {
+.twibbon-section canvas#imgCanvas {
   @apply border-2 border-dashed rounded-lg mx-auto my-4 touch-none;
   width: 80%;
   max-width: 400px;
@@ -93,8 +93,28 @@ body {
   @apply flex flex-col flex-wrap items-center justify-center gap-3
 }
 
-.twibbon-video .btn-download {
+.twibbon-video canvas {
+  @apply border-2 border-dashed rounded-lg touch-none;
+  /* width: 80%!important; */
+  max-width: 400px;
+  height: auto!important;
+  aspect-ratio: 1;
+  margin: 0 auto;
+}
+
+.twibbon-video .twibbon-video-buttons button {
   @apply inline-flex items-center px-4 py-2 text-sm font-medium cursor-pointer transition-colors hover:scale-[1.02] ease-in-out transform text-neutral-100 fill-current;
+}
+
+.twibbon-video .twibbon-video-buttons .btn-play {
+  @apply bg-blue-500 hover:bg-blue-700 rounded-full;
+}
+
+.twibbon-video .twibbon-video-buttons .btn-pause {
+  @apply bg-violet-500 hover:bg-violet-700 rounded-full;
+}
+
+.twibbon-video .twibbon-video-buttons .btn-download {
   @apply bg-lime-500 hover:bg-lime-700 rounded-full;
 }
 

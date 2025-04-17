@@ -104,21 +104,17 @@ function BackgroundMesh({
   imageWidth: number;
   imageHeight: number;
 }) {
-  const radians = (-rotation * Math.PI) / 180;
+  const radians = (rotation * Math.PI) / 180;
   return (
-    <group
-      // Terapkan posisi, rotasi, dan skala yang sama seperti canvas image
-      position={[pos.x, pos.y, -0.1]}
-      rotation={[0, 0, radians]}
-      scale={[scale, scale, 1]}
-    >
+    <group position={[pos.x, pos.y, -0.1]} rotation={[0, 0, radians]}>
       <mesh>
-        {/* Gunakan dimensi asli gambar */}
-        <planeGeometry args={[imageWidth, imageHeight]} />
+        {/* Plane geometry ukuran sesuai dimensi asli gambar dikalikan scale */}
+        <planeGeometry args={[imageWidth * scale, imageHeight * scale]} />
         <meshBasicMaterial map={imageTexture} transparent />
       </mesh>
       {twibbonTexture && (
         <mesh>
+          {/* Untuk static canvas, overlay twibbon ditampilkan dengan ukuran kanvas penuh */}
           <planeGeometry args={[400, 400]} />
           <meshBasicMaterial map={twibbonTexture} transparent opacity={0.7} />
         </mesh>
@@ -131,7 +127,7 @@ function BackgroundMesh({
 // Komponen utama Canvas: termasuk preview upload, manipulasi, dan preview video (R3F)
 //
 export default function Canvas() {
-  // Refs & state untuk upload/manipulasi gambar
+  // Refs dan state untuk upload/manipulasi gambar dan canvas statis
   const btnUploadRef = useRef<HTMLButtonElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -153,25 +149,20 @@ export default function Canvas() {
     null
   );
   const [dragging, setDragging] = useState(false);
-  // Posisi offset (dalam pixel; 0 berarti pusat)
+  // Nilai pos disimpan sebagai offset dalam satuan pixel (0 berarti pusat)
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [scaleVal, setScaleVal] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [isTwibbonActive, setIsTwibbonActive] = useState(false);
 
   // State untuk preview video dan video texture
-  const btnPreviewRef = useRef<HTMLButtonElement | null>(null);
   const [showPreviewVideo, setShowPreviewVideo] = useState(false);
   const [videoTexture, setVideoTexture] = useState<THREE.VideoTexture | null>(
     null
   );
-  // Simpan referensi elemen video untuk kontrol (play, dst)
   const videoElemRef = useRef<HTMLVideoElement | null>(null);
   // Untuk mendapatkan akses ke elemen canvas yang dibuat oleh R3F
   const r3fCanvasRef = useRef<HTMLCanvasElement>(null);
-  const playingRef = useRef(false);
-  const [playing, setPlaying] = useState(false);
-  const [downloaded, setDownload] = useState(false);
 
   const canvasSize = 400; // Ukuran canvas statis (400×400)
 
@@ -193,23 +184,22 @@ export default function Canvas() {
     if (imageObj) drawCanvas();
   }, [imageObj, pos, scaleVal, rotation, twibbonImg]);
 
-  // Buat video texture dari "/twibbon.mp4" saat preview video diaktifkan
+  // Buat video texture dari /twibbon.mp4 saat preview video diaktifkan
   useEffect(() => {
     if (showPreviewVideo && !videoTexture) {
       const videoElem = document.createElement("video");
       videoElemRef.current = videoElem;
       videoElem.src = "/twibbon.mp4";
       videoElem.crossOrigin = "anonymous";
-      videoElem.controls = true;
-      videoElem.muted = false;
+      videoElem.muted = false; // agar autoplay tidak bermasalah
       videoElem.playsInline = true;
       videoElem.loop = false;
-
+      videoElem.play().catch((err) => {
+        console.error("Gagal memulai video:", err);
+      });
       const texture = new THREE.VideoTexture(videoElem);
-      texture.flipY = true; // Pastikan orientasi benar
-      texture.generateMipmaps = false; // Optimal untuk video
+      texture.needsUpdate = true;
       setVideoTexture(texture);
-      scrollToRef(btnPreviewRef, -50);
     }
   }, [showPreviewVideo, videoTexture]);
 
@@ -244,7 +234,7 @@ export default function Canvas() {
     ctx.fillRect(0, 0, canvasSize, canvasSize);
     if (imageObj) {
       ctx.save();
-      // Translate ke pusat (200,200) lalu geser sesuai pos
+      // Translate dengan pusat kanvas (200,200) lalu geser sesuai pos
       ctx.translate(pos.x + canvasSize / 2, pos.y + canvasSize / 2);
       ctx.rotate((rotation * Math.PI) / 180);
       ctx.scale(scaleVal, scaleVal);
@@ -284,22 +274,20 @@ export default function Canvas() {
         if (!canvas) return;
         const { width, height } = img;
         const maxDim = Math.max(width, height);
-        const fitScale = canvasSize / maxDim; // Hitung scale agar gambar pas di canvas
+        // hitung scale agar gambar sesuai dengan ukuran kanvas (400)
+        const fitScale = canvasSize / maxDim;
         setImageObj(img);
-        setImageDimensions({ width, height }); // Simpan dimensi asli gambar untuk R3F
-
+        // Simpan dimensi asli gambar untuk digunakan di R3F
+        setImageDimensions({ width, height });
         // Buat texture dari gambar yang diupload
         const tex = new THREE.Texture(img);
-        tex.flipY = true; // Hindari pembalikan vertikal
-        tex.minFilter = THREE.LinearFilter; // Tingkatkan kualitas tampilan gambar
-        tex.generateMipmaps = true; // Aktifkan mipmaps untuk optimasi
-        tex.needsUpdate = true; // Pastikan perubahan diterapkan
-
+        tex.needsUpdate = true;
         setImageTexture(tex);
         setIsTwibbonActive(true);
-        setRotation(0); // Reset rotasi
-        setPos({ x: 0, y: 0 }); // Pusatkan gambar
-        setScaleVal(fitScale); // Sesuaikan scale gambar dengan ukuran kanvas
+        setRotation(0);
+        // Pada canvas, gambar digeser ke pusat dengan offset pos
+        setPos({ x: 0, y: 0 });
+        setScaleVal(fitScale);
       };
       img.src = event.target?.result as string;
     };
@@ -383,7 +371,6 @@ export default function Canvas() {
   // Aktifkan preview video
   const handlePreview = () => {
     setShowPreviewVideo(true);
-    setPlaying(false);
   };
 
   // Reset semua state dan canvas
@@ -398,91 +385,36 @@ export default function Canvas() {
     scrollToRef(canvasRef, -50);
     setShowPreviewVideo(false);
     setVideoTexture(null);
-    if (videoElemRef.current) {
-      videoElemRef.current.pause(); // Hentikan video
-      videoElemRef.current.src = ""; // Kosongkan sumber video
-      videoElemRef.current = null; // Hapus referensi
-    }
-    setPlaying(false);
   };
 
   const handleRotateRight = () => {
     setRotation((prev) => prev + 90);
   };
 
-  // Fungsi play video: memanggil metode play pada elemen video
   const handlePlayVideo = () => {
     if (videoElemRef.current) {
-      videoElemRef.current.play().catch((err) => {
-        console.error("Gagal memulai video:", err);
-      });
+      videoElemRef.current.play()
     }
   };
 
-  const handlePauseVideo = () => {
-    if (videoElemRef.current) {
-      videoElemRef.current.pause();
-      setPlaying(false);
-    }
-  };
-
-  // useEffect(() => {
-  //   if (videoElemRef.current) {
-  //     const video = videoElemRef.current;
-
-  //     const handleTimeUpdate = () => {
-  //       if (video.currentTime > 26) {
-  //         setPlaying(false);
-  //         video.pause(); // Menghentikan video jika diperlukan
-  //       }
-  //     };
-
-  //     video.addEventListener("timeupdate", handleTimeUpdate);
-
-  //     return () => {
-  //       video.removeEventListener("timeupdate", handleTimeUpdate);
-  //     };
-  //   }
-  // });
-
-  // Fungsi untuk download video dari canvas R3F dengan audio, full durasi, & kualitas HD.
+  // Fungsi untuk download video dari canvas R3F
   const handleDownload = () => {
     if (!r3fCanvasRef.current) {
       console.error("Canvas react‑three‑fiber tidak ditemukan");
       return;
     }
-
-    // Ensure video starts from the beginning and plays
     if (videoElemRef.current) {
-      videoElemRef.current.currentTime = 0;
-      videoElemRef.current.play().catch((err) => {
-        console.error("Gagal memulai video:", err);
-      });
+      videoElemRef.current.play()
     }
-
     const canvasElem = r3fCanvasRef.current;
-    const canvasStream = canvasElem.captureStream(30); // Capture stream from canvas
-    const videoStream = (
-      videoElemRef.current as HTMLVideoElement & {
-        captureStream?: () => MediaStream;
-      }
-    )?.captureStream?.();
-
-    if (videoStream) {
-      const audioTracks = videoStream.getAudioTracks();
-      audioTracks.forEach((track: MediaStreamTrack) => {
-        canvasStream.addTrack(track); // Add audio tracks to canvas stream
-      });
-    }
-
-    const recorder = new MediaRecorder(canvasStream, {
+    const stream = canvasElem.captureStream(30);
+    const recorder = new MediaRecorder(stream, {
       mimeType: "video/webm; codecs=vp8",
     });
     const chunks: Blob[] = [];
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) chunks.push(event.data);
     };
-
     recorder.onstop = () => {
       const blob = new Blob(chunks, { type: "video/webm" });
       const url = URL.createObjectURL(blob);
@@ -493,14 +425,11 @@ export default function Canvas() {
       link.click();
       document.body.removeChild(link);
     };
-
     recorder.start();
-
-    if (videoElemRef.current) {
-      videoElemRef.current.onended = () => {
-        if (recorder.state === "recording") recorder.stop();
-      };
-    }
+    // Hentikan perekaman setelah 15 detik (atau ketika video selesai)
+    setTimeout(() => {
+      if (recorder.state === "recording") recorder.stop();
+    }, 15000);
   };
 
   return (
@@ -598,7 +527,6 @@ export default function Canvas() {
         )}
         {imageObj && (
           <button
-            ref={btnPreviewRef}
             onClick={handlePreview}
             className="btn-preview bg-blue-500 text-white px-3 py-1 rounded"
           >
@@ -612,7 +540,6 @@ export default function Canvas() {
       {showPreviewVideo && (
         <div className="twibbon-video">
           <R3FCanvas
-            style={{ maxWidth: "400px", maxHeight: "400px" }}
             // Menggunakan kamera ortografi agar ruang koordinat 400×400 dengan pusat di (0,0)
             orthographic
             camera={{
@@ -624,21 +551,18 @@ export default function Canvas() {
               far: 1000,
               position: [0, 0, 1],
             }}
-            // Setel dpr agar renderer menghasilkan output dengan resolusi tinggi sesuai device
-            dpr={window.devicePixelRatio}
             onCreated={({ gl }) => {
               r3fCanvasRef.current = gl.domElement;
             }}
-            // style={{ width: "400px", height: "400px" }}
           >
             {/* Background Mesh: menampilkan gambar dasar dengan transformasi yang sama seperti pada canvas statis */}
             {imageTexture && imageDimensions && (
               <BackgroundMesh
                 imageTexture={imageTexture}
-                twibbonTexture={null}
-                pos={{ x: pos.x, y: -pos.y }} // Invert Y coordinate
+                twibbonTexture={null} // Hanya gambar dasar yang ditampilkan di video preview
+                pos={pos}
                 scale={scaleVal}
-                rotation={rotation} // Reverse the rotation direction
+                rotation={rotation}
                 imageWidth={imageDimensions.width}
                 imageHeight={imageDimensions.height}
               />
@@ -649,18 +573,18 @@ export default function Canvas() {
             {videoTexture && <UpdateTexture videoTexture={videoTexture} />}
           </R3FCanvas>
 
-          <div className="twibbon-video-buttons flex flex-wrap gap-2 justify-center">
+          <div className="twibbon-video-buttons flex flex-wrap gap-2 justify-center mt-3">
             <button
-              onClick={playing ? handlePauseVideo : handlePlayVideo}
-              className={playing ? "btn-pause" : "btn-play"}
+              onClick={handlePlayVideo}
+              className="btn-play"
             >
-              <Icon
-                icon={playing ? "line-md:pause" : "mingcute:play-fill"}
-                className="h-5"
-              />
-              <span className="ms-1">{playing ? "Pause" : "Play"}</span>
+              <Icon icon="mingcute:play-fill" className="h-5" />
+              <span className="ms-1">Play</span>
             </button>
-            <button onClick={handleDownload} className="btn-download">
+            <button
+              onClick={handleDownload}
+              className="btn-download"
+            >
               <Icon icon="tabler:download" className="h-5" />
               <span className="ms-1">Download</span>
             </button>
